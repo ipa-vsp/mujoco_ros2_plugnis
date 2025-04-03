@@ -36,17 +36,17 @@ endforeach()
 
 ## COMPILE
 add_library(
-  ${PROJECT_NAME}
+  mujoco_system_plugins
   SHARED
   src/mujoco_system.cpp
 )
-target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
-target_include_directories(${PROJECT_NAME} PUBLIC
+target_compile_features(mujoco_system_plugins PUBLIC cxx_std_17)
+target_include_directories(mujoco_system_plugins PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include/>
 )
 ament_target_dependencies(
-  ${PROJECT_NAME} PUBLIC
+  mujoco_system_plugins PUBLIC
   ${THIS_PACKAGE_INCLUDE_DEPENDS}
 )
 
@@ -59,8 +59,8 @@ install(
   DESTINATION include/
 )
 
-install(TARGETS ${PROJECT_NAME}
-  EXPORT export_${PROJECT_NAME}
+install(TARGETS mujoco_system_plugins
+  EXPORT export_mujoco_system_plugins
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
@@ -80,7 +80,7 @@ endif()
 
 
 ## EXPORTS
-ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
+ament_export_targets(export_mujoco_system_plugins HAS_LIBRARY_TARGET)
 ament_export_dependencies(${THIS_PACKAGE_INCLUDE_DEPENDS})
 
 ament_package()

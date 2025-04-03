@@ -13,42 +13,6 @@ def generate_launch_description():
     declared_arguments = []
     declared_arguments.append(
         DeclareLaunchArgument(
-            "prefix",
-            default_value='""',
-            description="Prefix of the joint names, useful for \
-        multi-robot setup. If changed than also joint names in the controllers' configuration \
-        have to be updated.",
-        )
-    )
-    declared_arguments.append(
-        DeclareLaunchArgument(
-            "use_mock_hardware",
-            default_value="false",
-            description="Start robot with mock hardware mirroring command to its states.",
-        )
-    )
-    declared_arguments.append(
-        DeclareLaunchArgument(
-            "mock_sensor_commands",
-            default_value="false",
-            description="Enable mocked command interfaces for sensors used for simple simulations. \
-            Used only if 'use_mock_hardware' parameter is true.",
-        )
-    )
-    declared_arguments.append(
-        DeclareLaunchArgument(
-            "slowdown", default_value="50.0", description="Slowdown factor of the RRbot."
-        )
-    )
-    declared_arguments.append(
-        DeclareLaunchArgument(
-            "robot_controller",
-            default_value="forward_velocity_controller",
-            description="Robot controller to start.",
-        )
-    )
-    declared_arguments.append(
-        DeclareLaunchArgument(
             "gui",
             default_value="true",
             description="Start RViz2 automatically with this launch file.",
@@ -56,11 +20,6 @@ def generate_launch_description():
     )
 
     # Initialize Arguments
-    prefix = LaunchConfiguration("prefix")
-    use_mock_hardware = LaunchConfiguration("use_mock_hardware")
-    mock_sensor_commands = LaunchConfiguration("mock_sensor_commands")
-    slowdown = LaunchConfiguration("slowdown")
-    robot_controller = LaunchConfiguration("robot_controller")
     gui = LaunchConfiguration("gui")
 
     # Get URDF via xacro
@@ -72,21 +31,9 @@ def generate_launch_description():
                 [
                     FindPackageShare("mujoco_ros2_control_demos"),
                     "urdf",
-                    "rrbot_system_multi_interface.urdf.xacro",
+                    "test_cart_position.xacro.urdf",
                 ]
             ),
-            " ",
-            "prefix:=",
-            prefix,
-            " ",
-            "use_mock_hardware:=",
-            use_mock_hardware,
-            " ",
-            "mock_sensor_commands:=",
-            mock_sensor_commands,
-            " ",
-            "slowdown:=",
-            slowdown,
         ]
     )
     robot_description = {"robot_description": robot_description_content}
@@ -95,7 +42,7 @@ def generate_launch_description():
         [
             FindPackageShare("mujoco_ros2_control_demos"),
             "config",
-            "rrbot_multi_interface_forward_controllers.yaml",
+            "cartpole_controller_position.yaml",
         ]
     )
     rviz_config_file = PathJoinSubstitution(
@@ -132,7 +79,7 @@ def generate_launch_description():
     robot_controller_spawner = Node(
         package="controller_manager",
         executable="spawner",
-        arguments=[robot_controller, "--param-file", robot_controllers],
+        arguments=["joint_trajectory_controller", "--param-file", robot_controllers],
     )
 
     # Delay rviz start after `joint_state_broadcaster`

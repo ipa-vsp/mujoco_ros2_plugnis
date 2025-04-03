@@ -95,6 +95,16 @@ hardware_interface::CallbackReturn MujocoSystem::on_configure(
   // reset values always when configuring hardware
   for (const auto & [name, descr] : joint_state_interfaces_)
   {
+    RCLCPP_INFO(get_logger(), "Resetting state interface %s", name.c_str());
+    RCLCPP_INFO(get_logger(), "State insterface Description %s", descr.interface_name.c_str());
+    hardware_interface::InterfaceInfo info = descr.interface_info;
+    RCLCPP_INFO(get_logger(), "State interface info %s", info.name.c_str());
+    RCLCPP_INFO(get_logger(), "State interface hardware size %d", info.size);
+    RCLCPP_INFO(get_logger(), "State interface hardware enable limites %s", info.enable_limits ? "true" : "false");
+    RCLCPP_INFO(get_logger(), "State interface hardware min %s", info.min.c_str());
+    RCLCPP_INFO(get_logger(), "State interface hardware max %s", info.max.c_str());
+    RCLCPP_INFO(get_logger(), "State interface hardware datatype %s", info.data_type.c_str());
+    
     set_state(name, 0.0);
   }
   for (const auto & [name, descr] : joint_command_interfaces_)
@@ -110,6 +120,7 @@ hardware_interface::return_type MujocoSystem::prepare_command_mode_switch(
   const std::vector<std::string> & start_interfaces,
   const std::vector<std::string> & stop_interfaces)
 {
+  RCLCPP_INFO(get_logger(), "Preparing command mode switch...");
   // Prepare for new command modes
   std::vector<integration_level_t> new_modes = {};
   for (std::string key : start_interfaces)
@@ -207,7 +218,7 @@ hardware_interface::CallbackReturn MujocoSystem::on_deactivate(
     RCLCPP_INFO(get_logger(), "%.1f seconds left...", hw_stop_sec_ - i);
   }
 
-  RCLCPP_INFO(get_logger(), "Successfully deactivated!");
+  // RCLCPP_INFO(get_logger(), "Successfully deactivated!");
   // END: This part here is for exemplary purposes - Please do not copy to your production code
 
   return hardware_interface::CallbackReturn::SUCCESS;
@@ -227,7 +238,7 @@ hardware_interface::return_type MujocoSystem::read(
     switch (control_level_[i])
     {
       case integration_level_t::UNDEFINED:
-        RCLCPP_INFO(get_logger(), "Nothing is using the hardware interface!");
+        // RCLCPP_INFO(get_logger(), "Nothing is using the hardware interface!");
         return hardware_interface::return_type::OK;
         break;
       case integration_level_t::POSITION:
@@ -256,7 +267,7 @@ hardware_interface::return_type MujocoSystem::read(
        << "pos: " << get_state(name_pos) << ", vel: " << get_state(name_vel)
        << ", acc: " << get_state(name_acc) << " for joint " << i;
   }
-  RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 500, "%s", ss.str().c_str());
+  // RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 500, "%s", ss.str().c_str());
   // END: This part here is for exemplary purposes - Please do not copy to your production code
   return hardware_interface::return_type::OK;
 }
@@ -279,7 +290,7 @@ hardware_interface::return_type MujocoSystem::write(
        << ", acc: " << get_command(name_acc) << " for joint " << i
        << ", control lvl: " << static_cast<int>(control_level_[i]);
   }
-  RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 500, "%s", ss.str().c_str());
+  // RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 500, "%s", ss.str().c_str());
   // END: This part here is for exemplary purposes - Please do not copy to your production code
 
   return hardware_interface::return_type::OK;
@@ -289,6 +300,4 @@ hardware_interface::return_type MujocoSystem::write(
 
 #include "pluginlib/class_list_macros.hpp"
 
-PLUGINLIB_EXPORT_CLASS(
-  mujoco_ros2_control::MujocoSystem,
-  hardware_interface::SystemInterface)
+PLUGINLIB_EXPORT_CLASS(mujoco_ros2_control::MujocoSystem, hardware_interface::SystemInterface)
