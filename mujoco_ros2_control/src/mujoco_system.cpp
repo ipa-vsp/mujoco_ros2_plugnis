@@ -14,6 +14,14 @@
 
 namespace mujoco_ros2_control
 {
+
+bool MujocoSystem::init_sim(mjModel * model, mjData * data)
+{
+  mj_model_ = model;
+  mj_data_ = data;
+  return true;
+}
+
 hardware_interface::CallbackReturn MujocoSystem::on_init(
   const hardware_interface::HardwareInfo & info)
 {

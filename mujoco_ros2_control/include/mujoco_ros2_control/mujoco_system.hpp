@@ -17,6 +17,9 @@
 #include "rclcpp/time.hpp"
 #include "rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp"
 #include "rclcpp_lifecycle/state.hpp"
+#include "mujoco/mujoco.h"
+#include "rclcpp/rclcpp.hpp"
+#include "urdf/model.h"
 
 namespace mujoco_ros2_control
 {
@@ -47,6 +50,7 @@ public:
   hardware_interface::return_type write(
     const rclcpp::Time & time, const rclcpp::Duration & period) override;
 
+  bool init_sim(mjModel *model, mjData *data, const hardware_interface::HardwareInfo &hardware_info);
 private:
   // Parameters for the RRBot simulation
   double hw_start_sec_;
@@ -65,6 +69,9 @@ private:
 
   // Active control mode for each actuator
   std::vector<integration_level_t> control_level_;
+
+  mjModel *mj_model_;
+  mjData *mj_data_;
 };
 } // namespace mujoco_ros2_control
 
