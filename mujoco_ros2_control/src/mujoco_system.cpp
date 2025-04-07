@@ -15,10 +15,28 @@
 namespace mujoco_ros2_control
 {
 
-bool MujocoSystem::init_sim(mjModel * model, mjData * data)
+bool MujocoSystem::init_sim(/*mjModel * model, mjData * data, */ const hardware_interface::HardwareInfo &hardware_info)
 {
-  mj_model_ = model;
-  mj_data_ = data;
+  RCLCPP_INFO(get_logger(), "Initializing MujocoSystem...");
+  // mj_model_ = model;
+  // mj_data_ = data;
+  // mj_joint_info_ = std::make_shared<std::unordered_map<std::string, MujocoJointInfo>>();
+
+  // for(size_t joint_index = 0; joint_index < hardware_info.joints.size(); ++joint_index) 
+  // {
+  //   auto joint = hardware_info.joints[joint_index];
+  //   int mj_joint_id = mj_name2id(mj_model_, mjtObj::mjOBJ_JOINT, joint.name.c_str());
+  //   if (mj_joint_id == -1) {
+  //     RCLCPP_ERROR(get_logger(), "Joint '%s' not found in Mujoco model.", joint.name.c_str());
+  //     return false;
+  //   }
+  //   MujocoJointInfo joint_info;
+  //   joint_info.mj_joint_type = mj_model_->jnt_type[mj_joint_id];
+  //   joint_info.mj_pos_adr = mj_model_->jnt_qposadr[mj_joint_id];
+  //   joint_info.mj_vel_adr = mj_model_->jnt_dofadr[mj_joint_id];
+  //   mj_joint_info_->insert({joint.name, joint_info});
+  //   RCLCPP_INFO(get_logger(), "Joint '%s' found in Mujoco model with type %d", joint.name.c_str(), joint_info.mj_joint_type);
+  // }
   return true;
 }
 
@@ -43,43 +61,45 @@ hardware_interface::CallbackReturn MujocoSystem::on_init(
   {
     // RRBotSystemMultiInterface has exactly 3 state interfaces
     // and 3 command interfaces on each joint
-    if (joint.command_interfaces.size() != 3)
+    if (joint.command_interfaces.size() <= 1)
     {
       RCLCPP_FATAL(
-        get_logger(), "Joint '%s' has %zu command interfaces. 3 expected.", joint.name.c_str(),
+        get_logger(), "Joint '%s' has %zu command interfaces. At least 1 expected.", joint.name.c_str(),
         joint.command_interfaces.size());
       return hardware_interface::CallbackReturn::ERROR;
     }
 
     if (!(joint.command_interfaces[0].name == hardware_interface::HW_IF_POSITION ||
           joint.command_interfaces[0].name == hardware_interface::HW_IF_VELOCITY ||
-          joint.command_interfaces[0].name == hardware_interface::HW_IF_ACCELERATION))
+          joint.command_interfaces[0].name == hardware_interface::HW_IF_ACCELERATION ||
+          joint.command_interfaces[0].name == hardware_interface::HW_IF_EFFORT))
     {
       RCLCPP_FATAL(
-        get_logger(), "Joint '%s' has %s command interface. Expected %s, %s, or %s.",
+        get_logger(), "Joint '%s' has %s command interface. Expected %s, %s, %s or %s.",
         joint.name.c_str(), joint.command_interfaces[0].name.c_str(),
         hardware_interface::HW_IF_POSITION, hardware_interface::HW_IF_VELOCITY,
-        hardware_interface::HW_IF_ACCELERATION);
+        hardware_interface::HW_IF_ACCELERATION, hardware_interface::HW_IF_EFFORT);
       return hardware_interface::CallbackReturn::ERROR;
     }
 
-    if (joint.state_interfaces.size() != 3)
+    if (joint.state_interfaces.size() <= 1)
     {
       RCLCPP_FATAL(
-        get_logger(), "Joint '%s'has %zu state interfaces. 3 expected.", joint.name.c_str(),
+        get_logger(), "Joint '%s'has %zu state interfaces. At least 1 expected.", joint.name.c_str(),
         joint.command_interfaces.size());
       return hardware_interface::CallbackReturn::ERROR;
     }
 
     if (!(joint.state_interfaces[0].name == hardware_interface::HW_IF_POSITION ||
           joint.state_interfaces[0].name == hardware_interface::HW_IF_VELOCITY ||
-          joint.state_interfaces[0].name == hardware_interface::HW_IF_ACCELERATION))
+          joint.state_interfaces[0].name == hardware_interface::HW_IF_ACCELERATION ||
+          joint.state_interfaces[0].name == hardware_interface::HW_IF_EFFORT))
     {
       RCLCPP_FATAL(
-        get_logger(), "Joint '%s' has %s state interface. Expected %s, %s, or %s.",
+        get_logger(), "Joint '%s' has %s state interface. Expected %s, %s, %s or %s.",
         joint.name.c_str(), joint.state_interfaces[0].name.c_str(),
         hardware_interface::HW_IF_POSITION, hardware_interface::HW_IF_VELOCITY,
-        hardware_interface::HW_IF_ACCELERATION);
+        hardware_interface::HW_IF_ACCELERATION, hardware_interface::HW_IF_EFFORT);
       return hardware_interface::CallbackReturn::ERROR;
     }
   }
@@ -100,25 +120,38 @@ hardware_interface::CallbackReturn MujocoSystem::on_configure(
   }
   // END: This part here is for exemplary purposes - Please do not copy to your production code
 
+  // for(const auto & joint : info_.joints)
+  // {
+  //   if(mj_joint_info_->find(joint.name) == mj_joint_info_->end())
+  //   {
+  //     RCLCPP_ERROR(get_logger(), "Joint '%s' not found in Mujoco model.", joint.name.c_str());
+  //     return hardware_interface::CallbackReturn::ERROR;
+  //   }
+  // }
+
+  auto get_initial_value = [this](const hardware_interface::InterfaceInfo & info)
+  {
+    if(!info.initial_value.empty())
+    {
+      return std::stod(info.initial_value);
+    }
+    else
+    {
+      return 0.0; // std::numeric_limits<double>::quiet_NaN();
+    }
+  };
+
   // reset values always when configuring hardware
   for (const auto & [name, descr] : joint_state_interfaces_)
-  {
-    RCLCPP_INFO(get_logger(), "Resetting state interface %s", name.c_str());
-    RCLCPP_INFO(get_logger(), "State insterface Description %s", descr.interface_name.c_str());
-    hardware_interface::InterfaceInfo info = descr.interface_info;
-    RCLCPP_INFO(get_logger(), "State interface info %s", info.name.c_str());
-    RCLCPP_INFO(get_logger(), "State interface hardware size %d", info.size);
-    RCLCPP_INFO(get_logger(), "State interface hardware enable limites %s", info.enable_limits ? "true" : "false");
-    RCLCPP_INFO(get_logger(), "State interface hardware min %s", info.min.c_str());
-    RCLCPP_INFO(get_logger(), "State interface hardware max %s", info.max.c_str());
-    RCLCPP_INFO(get_logger(), "State interface hardware datatype %s", info.data_type.c_str());
-    
-    set_state(name, 0.0);
+  { 
+    set_state(name, 0.0); // get_initial_value(descr.interface_info));
   }
+
   for (const auto & [name, descr] : joint_command_interfaces_)
   {
     set_command(name, 0.0);
   }
+
   RCLCPP_INFO(get_logger(), "Successfully configured!");
 
   return hardware_interface::CallbackReturn::SUCCESS;
@@ -308,4 +341,4 @@ hardware_interface::return_type MujocoSystem::write(
 
 #include "pluginlib/class_list_macros.hpp"
 
-PLUGINLIB_EXPORT_CLASS(mujoco_ros2_control::MujocoSystem, hardware_interface::SystemInterface)
+PLUGINLIB_EXPORT_CLASS(mujoco_ros2_control::MujocoSystem, mujoco_ros2_control::MujocoSystemInterface)

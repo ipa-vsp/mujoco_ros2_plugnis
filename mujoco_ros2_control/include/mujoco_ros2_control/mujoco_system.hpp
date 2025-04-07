@@ -21,9 +21,19 @@
 #include "rclcpp/rclcpp.hpp"
 #include "urdf/model.h"
 
+#include "mujoco_ros2_control/mujoco_system_interface.hpp"
+
 namespace mujoco_ros2_control
 {
-class MujocoSystem : public hardware_interface::SystemInterface
+
+struct MujocoJointInfo
+{
+  int mj_joint_type;
+  int mj_pos_adr;
+  int mj_vel_adr;
+}; 
+
+class MujocoSystem : public mujoco_ros2_control::MujocoSystemInterface
 {
 public:
   RCLCPP_SHARED_PTR_DEFINITIONS(MujocoSystem)
@@ -50,7 +60,7 @@ public:
   hardware_interface::return_type write(
     const rclcpp::Time & time, const rclcpp::Duration & period) override;
 
-  bool init_sim(mjModel *model, mjData *data, const hardware_interface::HardwareInfo &hardware_info);
+  bool init_sim(/*mjModel *model, mjData *data,*/ const hardware_interface::HardwareInfo &hardware_info);
 private:
   // Parameters for the RRBot simulation
   double hw_start_sec_;
@@ -70,8 +80,10 @@ private:
   // Active control mode for each actuator
   std::vector<integration_level_t> control_level_;
 
-  mjModel *mj_model_;
-  mjData *mj_data_;
+  // mjModel *mj_model_;
+  // mjData *mj_data_;
+
+  std::shared_ptr<std::unordered_map<std::string, MujocoJointInfo>> mj_joint_info_;
 };
 } // namespace mujoco_ros2_control
 

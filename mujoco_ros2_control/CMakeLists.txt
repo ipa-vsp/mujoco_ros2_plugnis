@@ -71,13 +71,30 @@ install(TARGETS mujoco_system_plugins
 )
 
 # Export hardware plugins
-pluginlib_export_plugin_description_file(hardware_interface mujoco_system_plugins.xml)
+pluginlib_export_plugin_description_file(mujoco_ros2_control mujoco_system_plugins.xml)
 
 # INSTALL
 install(
   DIRECTORY include/
   DESTINATION include/
 )
+
+add_executable(mujoco_ros2_control
+  src/mujoco_ros2_control_node.cpp
+  src/mujoco_ros2_control.cpp
+)
+ament_target_dependencies(mujoco_ros2_control ${THIS_PACKAGE_INCLUDE_DEPENDS})
+target_link_libraries(mujoco_ros2_control ${MUJOCO_LIB} glfw)
+target_include_directories(mujoco_ros2_control
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+    ${MUJOCO_INCLUDE_DIR}
+    ${EIGEN3_INCLUDE_DIR})
+
+install(TARGETS
+  mujoco_ros2_control
+  DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

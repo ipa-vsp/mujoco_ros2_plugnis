@@ -48,12 +48,14 @@ def generate_launch_description():
     rviz_config_file = PathJoinSubstitution(
         [FindPackageShare("ros2_control_demo_description"), "rrbot/rviz", "rrbot.rviz"]
     )
-
     control_node = Node(
-        package="controller_manager",
-        executable="ros2_control_node",
-        parameters=[robot_controllers],
-        output="both",
+        package='mujoco_ros2_control',
+        executable='mujoco_ros2_control',
+        output='screen',
+        parameters=[
+            robot_description,
+            robot_controllers,
+        ]
     )
     robot_state_pub_node = Node(
         package="robot_state_publisher",
@@ -102,9 +104,9 @@ def generate_launch_description():
     nodes = [
         control_node,
         robot_state_pub_node,
-        robot_controller_spawner,
-        delay_rviz_after_joint_state_broadcaster_spawner,
-        delay_joint_state_broadcaster_after_robot_controller_spawner,
+        # robot_controller_spawner,
+        # delay_rviz_after_joint_state_broadcaster_spawner,
+        # delay_joint_state_broadcaster_after_robot_controller_spawner,
     ]
 
     return LaunchDescription(declared_arguments + nodes)
