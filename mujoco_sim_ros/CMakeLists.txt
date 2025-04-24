@@ -109,6 +109,6 @@ install(TARGETS mujoco_sim
     DESTINATION lib/${PROJECT_NAME})
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
-ament_export_dependencies(rclcpp pluginlib mujoco)
+ament_export_dependencies(rclcpp pluginlib)
 
 ament_package()

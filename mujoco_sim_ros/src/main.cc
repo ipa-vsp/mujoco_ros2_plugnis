@@ -30,6 +30,12 @@
 #include "simulate.h"
 #include "array_safety.h"
 
+#include <rclcpp/rclcpp.hpp>
+#include <controller_manager/controller_manager.hpp>
+#include <pluginlib/class_loader.hpp>
+#include <ament_index_cpp/get_package_share_directory.hpp>
+#include "mujoco_sim_ros/mujoco_plugin_loader.hpp"
+
 #define MUJOCO_PLUGIN_DIR "mujoco_plugin"
 
 extern "C" {
@@ -58,6 +64,9 @@ mjModel* m = nullptr;
 mjData* d = nullptr;
 
 using Seconds = std::chrono::duration<double>;
+
+std::unique_ptr<pluginlib::ClassLoader<mujoco_sim_ros::MujocoPluginLoader>> ros_plugin_loader;
+std::vector<std::shared_ptr<mujoco_sim_ros::MujocoPluginLoader>> ros_plugins;
 
 
 //---------------------------------------- plugin handling -----------------------------------------
@@ -269,7 +278,8 @@ mjModel* LoadModel(const char* file, mj::Simulate& sim) {
 }
 
 // simulate in background thread (while rendering in main thread)
-void PhysicsLoop(mj::Simulate& sim) {
+void PhysicsLoop(mj::Simulate& sim, 
+  std::vector<std::shared_ptr<mujoco_sim_ros::MujocoPluginLoader>>& plugins) {
   // cpu-sim syncronization point
   std::chrono::time_point<mj::Simulate::Clock> syncCPU;
   mjtNum syncSim = 0;
@@ -397,7 +407,20 @@ void PhysicsLoop(mj::Simulate& sim) {
               sim.InjectNoise();
 
               // call mj_step
-              mj_step(m, d);
+              if(plugins.empty()){
+                mj_step(m, d);
+              }
+              else{
+                for (auto& plugin : plugins) {
+                  plugin->pre_step(m, d);
+                }
+                mj_step1(m, d);
+                for (auto& plugin : plugins) {
+                  plugin->step(m, d);
+                }
+                mj_step2(m, d);
+              }
+
               const char* message = Diverged(m->opt.disableflags, d);
               if (message) {
                 sim.run = 0;
@@ -433,7 +456,10 @@ void PhysicsLoop(mj::Simulate& sim) {
 
 //-------------------------------------- physics_thread --------------------------------------------
 
-void PhysicsThread(mj::Simulate* sim, const char* filename) {
+void PhysicsThread(mj::Simulate* sim, rclcpp::Node::SharedPtr node,
+  rclcpp::NodeOptions options, 
+  const char* filename,
+  const std::vector<std::string>& plugin_names) {
   // request loadmodel if file given (otherwise drag-and-drop)
   if (filename != nullptr) {
     sim->LoadMessage(filename);
@@ -457,7 +483,33 @@ void PhysicsThread(mj::Simulate* sim, const char* filename) {
     }
   }
 
-  PhysicsLoop(*sim);
+  if(!plugin_names.empty()){
+    bool success = true;
+    ros_plugin_loader = std::make_unique<pluginlib::ClassLoader<mujoco_sim_ros::MujocoPluginLoader>>(
+      "mujoco_sim_ros", "mujoco_sim_ros::MujocoPluginLoader");
+    try {
+      for (const auto& plugin : plugin_names) {
+        ros_plugins.push_back(
+          ros_plugin_loader->createSharedInstance(plugin));
+      }
+    } catch (const pluginlib::PluginlibException& ex) {
+      std::cerr << "The plugin failed to load for some reason. Error: " << ex.what() << "\n";
+      success = false;
+    }
+    if (success) {
+      for (auto& plugin : ros_plugins) {
+        plugin->init(node, options, m, d);
+      }
+    } else {
+      std::cerr << "Failed to load plugins\n";
+    }
+  }
+
+  for (auto& plugin : ros_plugins) {
+    plugin->init(node, options, m, d);
+  }
+
+  PhysicsLoop(*sim, ros_plugins);
 
   // delete everything we allocated
   mj_deleteData(d);
@@ -492,6 +544,53 @@ int main(int argc, char** argv) {
     mju_error("Headers and library have different versions");
   }
 
+  // install signal handler
+  std::signal(SIGINT, [](int) {;
+    if (m) mj_deleteModel(m);
+    if (d) mj_deleteData(d);
+    ros_plugins.clear();
+    rclcpp::shutdown();
+    std::exit(0);
+  });
+
+  // --------------------- ROS2 Initialization ---------------------//
+  rclcpp::init(argc, argv);
+  std::shared_ptr<rclcpp::Node> node = std::make_shared<rclcpp::Node>("mujoco_sim_node");
+
+  rclcpp::NodeOptions cm_options = controller_manager::get_cm_node_options();
+  std::vector<std::string> node_args = cm_options.arguments();
+
+  for(int i = 0; i < argc; ++i) {
+    if(node_args.empty() && std::string(argv[i]) == "--ros-args") continue;
+    node_args.emplace_back(argv[i]);
+  }
+  cm_options.arguments(node_args);
+  node->declare_parameter("package", "");
+  node->declare_parameter("filepath", "");
+  node->declare_parameter("plugins", std::vector<std::string>());
+
+  std::string package_name = node->get_parameter("package").get_parameter_value().get<std::string>();
+  std::string filepath = node->get_parameter("filepath").get_parameter_value().get<std::string>();
+  std::vector<std::string> plugin_names = node->get_parameter("plugins").get_parameter_value().get<std::vector<std::string>>();
+
+  std::string package_share_path;
+  try {
+    package_share_path = ament_index_cpp::get_package_share_directory(package_name);
+  } catch (const std::runtime_error& ex) {
+    std::cerr << "Error getting package share directory: " << ex.what() << "\n";
+    return -1;
+  }
+  std::string model_path = package_share_path + "/" + filepath;
+
+  std::cout << "==============================\n";
+  std::cout << "Package name: " << package_name << "\n";
+  std::cout << "Model path: " << model_path << "\n";
+  std::cout << "Plugins: ";
+  for (const auto& plugin : plugin_names) {
+    std::cout << plugin << " ";
+  }
+  std::cout << "\n";
+  std::cout << "==============================\n";
   // scan for libraries in the plugin directory to load additional plugins
   scanPluginLibraries();
 
@@ -516,7 +615,7 @@ int main(int argc, char** argv) {
   }
 
   // start physics thread
-  std::thread physicsthreadhandle(&PhysicsThread, sim.get(), filename);
+  std::thread physicsthreadhandle(&PhysicsThread, sim.get(), node, cm_options, model_path.c_str(), plugin_names);
 
   // start simulation UI loop (blocking call)
   sim->RenderLoop();

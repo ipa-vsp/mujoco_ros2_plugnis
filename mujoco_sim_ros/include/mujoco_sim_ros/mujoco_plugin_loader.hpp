@@ -11,11 +11,11 @@ namespace mujoco_sim_ros
     {
         public:
             virtual ~MujocoPluginLoader() = default;
-            virtual void on_init(rclcpp::Node::SharedPtr &node, rclcpp::NodeOptions &options, mjModel *model, mjData * data) = 0;
-            virtual void on_start(mjModel *model, mjData *data) = 0;
+            virtual void init(rclcpp::Node::SharedPtr &node, rclcpp::NodeOptions &options, mjModel *model, mjData * data) = 0;
+            virtual void reset(mjModel *model, mjData *data) = 0;
             virtual void on_configure(mjModel *model, mjData *data) = 0;
-            virtual void on_activate(mjModel *model, mjData *data) = 0;
-            virtual void update(mjModel *model, mjData *data) = 0;
+            virtual void pre_step(mjModel *model, mjData *data) = 0;
+            virtual void step(mjModel *model, mjData *data) = 0;
             virtual void on_cleanup(mjModel *model, mjData *data) = 0;
             virtual void on_deactivate(mjModel *model, mjData *data) = 0;
         protected:
