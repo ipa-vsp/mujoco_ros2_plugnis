@@ -461,6 +461,7 @@ void PhysicsThread(mj::Simulate* sim, rclcpp::Node::SharedPtr node,
   const char* filename,
   const std::vector<std::string>& plugin_names) {
   // request loadmodel if file given (otherwise drag-and-drop)
+  std::cout << "Mujoco Physics thread started ... " << std::endl;
   if (filename != nullptr) {
     sim->LoadMessage(filename);
     m = LoadModel(filename, *sim);
@@ -497,9 +498,14 @@ void PhysicsThread(mj::Simulate* sim, rclcpp::Node::SharedPtr node,
       success = false;
     }
     if (success) {
-      for (auto& plugin : ros_plugins) {
-        plugin->init(node, options, m, d);
+      std::stringstream ss;
+      ss << "Loaded plugins: ";
+      ss << "\n";
+      for (const auto& plugin : plugin_names) {
+        ss << "\t\t\t\t-> " << plugin.c_str() << " \n";
       }
+      RCLCPP_INFO_THROTTLE(
+        node->get_logger(), *node->get_clock(), 1000, "%s", ss.str().c_str());
     } else {
       std::cerr << "Failed to load plugins\n";
     }
